@@ -1,0 +1,661 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="Test Case Name">
+      <stringProp name="TestPlan.comments">This is a test case for dTPay</stringProp>
+      <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="TEST_PLAN_TITLE" elementType="Argument">
+            <stringProp name="Argument.name">TEST_PLAN_TITLE</stringProp>
+            <stringProp name="Argument.value">TestCaseName</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="DT_URL" elementType="Argument">
+            <stringProp name="Argument.name">DT_URL</stringProp>
+            <stringProp name="Argument.value">https://tenantId.live.dynatrace.com</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="DT_TOKEN" elementType="Argument">
+            <stringProp name="Argument.name">DT_TOKEN</stringProp>
+            <stringProp name="Argument.value">dt0c01.TOKEN</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+    <hashTree>
+      <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="setUp Thread Group">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </SetupThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="JSR223 Sampler" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import groovy.json.JsonOutput
+import java.util.concurrent.ConcurrentHashMap
+
+def DT_URL   = vars.get(&quot;DT_URL&quot;)
+def DT_TOKEN = vars.get(&quot;DT_TOKEN&quot;)
+
+try {
+    log.info(&quot;=== setUp: Creating fresh stats map ===&quot;)
+
+    // Replace entire map with a brand new one — guaranteed clean
+    def freshMap = new ConcurrentHashMap()
+    props.put(&quot;STATS_MAP&quot;, freshMap)
+    props.put(&quot;STATS_LOCK&quot;, new Object())
+
+    long   startEpoch = System.currentTimeMillis()
+    String startTime  = new Date(startEpoch).format(&quot;yyyy-MM-dd HH:mm:ss&quot;)
+    String testPlan   = vars.get(&quot;__TestPlanName&quot;) ?: vars.get(&quot;TEST_PLAN_TITLE&quot;) ?: &quot;dTPay Test Case&quot;
+
+    props.put(&quot;TEST_START_EPOCH&quot;, String.valueOf(startEpoch))
+    props.put(&quot;TEST_START_TIME&quot;,  startTime)
+    props.put(&quot;TEST_PLAN_NAME&quot;,   testPlan)
+
+    
+    log.info(&quot;=== setUp: Fresh map created. Test Start = ${startTime} ===&quot;)
+
+    def payload = JsonOutput.toJson([[
+	    &quot;specversion&quot; : &quot;1.0&quot;,
+	    &quot;id&quot;          : &quot;jmeter-start-${startEpoch}&quot;,
+	    &quot;source&quot;      : &quot;jmeter&quot;,
+	    &quot;type&quot;        : &quot;com.jmeter.test.start&quot;,
+	    &quot;data&quot;        : [
+	        &quot;test.plan.name&quot;       : testPlan,
+	        &quot;test.ltn&quot;             : testPlan,
+	        &quot;test.event&quot;           : &quot;TEST_START&quot;,
+	        &quot;test.start.time&quot;      : startTime,
+	        &quot;test.start.epoch&quot;     : startEpoch
+	    ]
+	]])
+
+    def url  = new URL(DT_URL + &quot;/api/v2/bizevents/ingest&quot;)
+    def conn = (HttpURLConnection) url.openConnection()
+    conn.setRequestMethod(&quot;POST&quot;)
+    conn.setDoOutput(true)
+    conn.setRequestProperty(&quot;Content-Type&quot;, &quot;application/cloudevents-batch+json&quot;)
+    conn.setRequestProperty(&quot;Authorization&quot;, &quot;Api-Token ${DT_TOKEN}&quot;)
+    conn.setConnectTimeout(10000)
+    conn.setReadTimeout(10000)
+    conn.outputStream.withWriter(&quot;UTF-8&quot;) { it.write(payload) }
+
+    def responseCode = conn.responseCode
+    def responseBody = responseCode &gt;= 200 &amp;&amp; responseCode &lt; 300 \
+        ? conn.inputStream.text \
+        : conn.errorStream?.text ?: &quot;No error body&quot;
+
+    log.info(&quot;=== DT BizEvent START → HTTP ${responseCode}: ${responseBody} ===&quot;)
+
+    SampleResult.setResponseCode(String.valueOf(responseCode))
+    SampleResult.setSuccessful(responseCode == 202)
+    SampleResult.setResponseData(responseBody, &quot;UTF-8&quot;)
+
+} catch (Exception e) {
+    log.error(&quot;=== setUp FAILED: ${e.getMessage()} ===&quot;)
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseData(e.getMessage(), &quot;UTF-8&quot;)
+}</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree" enabled="true">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename"></stringProp>
+        </ResultCollector>
+        <hashTree/>
+      </hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Script Name Defind Here">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">10</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">X-JMeter-Test-Case</stringProp>
+              <stringProp name="Header.value">${__P(TEST_PLAN_TITLE,dTPay Test Case)}</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">X-JMeter-Thread-Group</stringProp>
+              <stringProp name="Header.value">${__threadGroupName}</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">User-Agent</stringProp>
+              <stringProp name="Header.value">ApacheJMeter/5.x (Custom-Testing)</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">X-JMeter-Active-Threads</stringProp>
+              <stringProp name="Header.value">${__groovy(ctx.getThreadGroup().getNumberOfThreads())}</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">X-JMeter-Total-Threads</stringProp>
+              <stringProp name="Header.value">${__groovy(ctx.getThreadGroup().getNumThreads())}</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">X-JMeter-Iteration</stringProp>
+              <stringProp name="Header.value">${__jm__Thread Group__idx}</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">X-JMeter-Request-Name</stringProp>
+              <stringProp name="Header.value">${__samplerName()}</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">x-dynatrace-test</stringProp>
+              <stringProp name="Header.value">LTN=${__P(TEST_PLAN_TITLE,dTPay Test Case)};LSN=${__threadGroupName()};TSN=${__samplerName};VU=${__threadNum};RUN=${__time()}</stringProp>
+            </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">Content-Type</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Sample Home Page">
+          <stringProp name="HTTPSampler.port">443</stringProp>
+          <stringProp name="HTTPSampler.protocol">https</stringProp>
+          <stringProp name="HTTPSampler.path">/</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">false</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree/>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="Sample Post Request Page">
+          <stringProp name="HTTPSampler.port">443</stringProp>
+          <stringProp name="HTTPSampler.protocol">https</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&#xd;
+    &quot;amount&quot;: ${randomPrice},&#xd;
+    &quot;method&quot;: &quot;${paymentType}&quot;,&#xd;
+    &quot;fullName&quot;: &quot;${randomFullName}&quot;,&#xd;
+    &quot;userId&quot;: ${randomUserId}&#xd;
+}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="JSR223 PreProcessor" enabled="true">
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="filename"></stringProp>
+            <stringProp name="parameters"></stringProp>
+            <stringProp name="script">import java.util.Random
+
+Random rand = new Random()
+
+// 1. Generate Random Price (e.g., between 10.00 and 1000.00)
+double minPrice = 10.00
+double maxPrice = 1000.00
+double randomPrice = minPrice + (maxPrice - minPrice) * rand.nextDouble()
+vars.put(&quot;randomPrice&quot;, String.format(&quot;%.2f&quot;, randomPrice))
+
+// 2. Select Random Payment Method from Array
+def methods = [&quot;CreditCard&quot;, &quot;DebitCard&quot;, &quot;PayPal&quot;]
+def randomMethod = methods[rand.nextInt(methods.size())]
+vars.put(&quot;paymentType&quot;, randomMethod)
+
+// 3. Generate Random Full Name (Using simple lists to mimic Postman)
+def firstNames = [&quot;James&quot;, &quot;Mary&quot;, &quot;Robert&quot;, &quot;Patricia&quot;, &quot;John&quot;, &quot;Jennifer&quot;, &quot;Michael&quot;, &quot;Linda&quot;, &quot;David&quot;, &quot;Elizabeth&quot;]
+def lastNames = [&quot;Smith&quot;, &quot;Johnson&quot;, &quot;Williams&quot;, &quot;Brown&quot;, &quot;Jones&quot;, &quot;Garcia&quot;, &quot;Miller&quot;, &quot;Davis&quot;, &quot;Rodriguez&quot;, &quot;Martinez&quot;]
+def randomFullName = firstNames[rand.nextInt(firstNames.size())] + &quot; &quot; + lastNames[rand.nextInt(lastNames.size())]
+vars.put(&quot;randomFullName&quot;, randomFullName)
+
+// 4. Generate Random User ID (e.g., 5-digit number)
+int randomUserId = rand.nextInt(90000) + 10000 
+vars.put(&quot;randomUserId&quot;, randomUserId.toString())</stringProp>
+            <stringProp name="scriptLanguage">groovy</stringProp>
+          </JSR223PreProcessor>
+          <hashTree/>
+        </hashTree>
+        <JSR223Listener guiclass="TestBeanGUI" testclass="JSR223Listener" testname="JSR223 Listener">
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="script">import java.util.concurrent.ConcurrentHashMap
+
+def result    = sampleEvent.getResult()
+def label     = result.getSampleLabel()
+def success   = result.isSuccessful()
+def respTime  = result.getTime()
+def bytes     = result.getBytesAsLong()
+def sentBytes = result.getSentBytes()
+
+// Skip setUp/tearDown BizEvent samplers
+def skipLabels = [&quot;DT BizEvent - Test Start&quot;, &quot;DT BizEvent - Test End + Summary&quot;]
+if (skipLabels.contains(label)) return
+
+// Get the shared map created fresh in setUp
+def statsMap = props.get(&quot;STATS_MAP&quot;)
+if (statsMap == null) {
+    log.warn(&quot;STATS_MAP not found — setUp may not have run&quot;)
+    return
+}
+
+def lock = props.get(&quot;STATS_LOCK&quot;)
+if (lock == null) return
+
+synchronized(lock) {
+
+	// ── Capture thread properties once on very first sample ──
+    if (statsMap.isEmpty()) {
+        try {
+            def tg         = ctx.getThreadGroup()
+            def numThreads = tg.getNumThreads()
+            def rampUp     = tg.getRampUp()
+            def loopCount  = tg.getSamplerController()?.getLoops() ?: 0
+            def tgName     = vars.get(&quot;__threadGroupName&quot;) ?: tg.getName() ?: &quot;N/A&quot;
+
+            props.put(&quot;THREAD_NUM_THREADS&quot;, String.valueOf(numThreads))
+            props.put(&quot;THREAD_RAMP_UP&quot;,     String.valueOf(rampUp))
+            props.put(&quot;THREAD_LOOP_COUNT&quot;,  String.valueOf(loopCount))
+            props.put(&quot;THREAD_GROUP_NAME&quot;,  tgName)
+
+            log.info(&quot;Thread props captured → name=${tgName} threads=${numThreads} rampup=${rampUp} loops=${loopCount}&quot;)
+        } catch (Exception ex) {
+            log.warn(&quot;Thread props capture failed: &quot; + ex.getMessage())
+        }
+    }
+    // ─────────────────────────────────────────────────────────
+    
+    // Get or create per-label map
+    if (!statsMap.containsKey(label)) {
+        statsMap.put(label, new ConcurrentHashMap([
+            &quot;total&quot;  : 0L, &quot;errors&quot; : 0L,
+            &quot;sumRT&quot;  : 0L, &quot;sumRT2&quot; : 0L,
+            &quot;minRT&quot;  : Long.MAX_VALUE,
+            &quot;maxRT&quot;  : 0L,
+            &quot;sumB&quot;   : 0L, &quot;sumS&quot;   : 0L
+        ]))
+        log.info(&quot;Registered new label: ${label}&quot;)
+    }
+
+    def s = statsMap.get(label)
+
+    s[&quot;total&quot;]  = s[&quot;total&quot;]  + 1
+    s[&quot;errors&quot;] = s[&quot;errors&quot;] + (success ? 0L : 1L)
+    s[&quot;sumRT&quot;]  = s[&quot;sumRT&quot;]  + respTime
+    s[&quot;sumRT2&quot;] = s[&quot;sumRT2&quot;] + (respTime * respTime)
+    s[&quot;minRT&quot;]  = Math.min(s[&quot;minRT&quot;] as long, respTime)
+    s[&quot;maxRT&quot;]  = Math.max(s[&quot;maxRT&quot;] as long, respTime)
+    s[&quot;sumB&quot;]   = s[&quot;sumB&quot;]   + bytes
+    s[&quot;sumS&quot;]   = s[&quot;sumS&quot;]   + sentBytes
+}</stringProp>
+        </JSR223Listener>
+        <hashTree/>
+        <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename"></stringProp>
+        </ResultCollector>
+        <hashTree/>
+        <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename"></stringProp>
+        </ResultCollector>
+        <hashTree/>
+      </hashTree>
+      <PostThreadGroup guiclass="PostThreadGroupGui" testclass="PostThreadGroup" testname="tearDown Thread Group">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </PostThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="JSR223 Sampler" enabled="true">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="filename"></stringProp>
+          <stringProp name="parameters"></stringProp>
+          <stringProp name="script">import groovy.json.JsonOutput
+import java.util.concurrent.ConcurrentHashMap
+
+def DT_URL   = vars.get(&quot;DT_URL&quot;)
+def DT_TOKEN = vars.get(&quot;DT_TOKEN&quot;)
+
+try {
+    log.info(&quot;=== tearDown: Script started ===&quot;)
+
+    long   endEpoch   = System.currentTimeMillis()
+    String endTime    = new Date(endEpoch).format(&quot;yyyy-MM-dd HH:mm:ss&quot;)
+    long   startEpoch = Long.parseLong(props.get(&quot;TEST_START_EPOCH&quot;) ?: &quot;0&quot;)
+    long   durationMs = endEpoch - startEpoch
+
+    log.info(&quot;TEST_PLAN_NAME  = &quot; + props.get(&quot;TEST_PLAN_NAME&quot;))
+    log.info(&quot;TEST_START_TIME = &quot; + props.get(&quot;TEST_START_TIME&quot;))
+    log.info(&quot;TEST_END_TIME   = &quot; + endTime)
+
+	// ── Read Thread Group properties from ctx ────────────────
+	def numThreads = Integer.parseInt(props.get(&quot;THREAD_NUM_THREADS&quot;) ?: &quot;0&quot;)
+	def rampUp     = Integer.parseInt(props.get(&quot;THREAD_RAMP_UP&quot;)     ?: &quot;0&quot;)
+	def loopCount  = Integer.parseInt(props.get(&quot;THREAD_LOOP_COUNT&quot;)  ?: &quot;0&quot;)
+	def scriptName  = props.get(&quot;THREAD_GROUP_NAME&quot;) ?: &quot;N/A&quot;
+	
+	log.info(&quot;Thread Group → name=${scriptName} threads=${numThreads} rampup=${rampUp} loops=${loopCount}&quot;)
+	// ─────────────────────────────────────────────────────────
+    
+	
+    def statsMap = props.get(&quot;STATS_MAP&quot;) as ConcurrentHashMap
+    if (!statsMap || statsMap.isEmpty()) {
+        log.warn(&quot;=== STATS_MAP is empty — no results to send ===&quot;)
+        SampleResult.setSuccessful(false)
+        SampleResult.setResponseData(&quot;STATS_MAP empty&quot;, &quot;UTF-8&quot;)
+        return
+    }
+
+    log.info(&quot;Labels in STATS_MAP: &quot; + statsMap.keySet())
+
+    def samplerResults = []
+    long grandTotal  = 0L, grandErrors = 0L
+    long grandSumRT  = 0L, grandSumRT2 = 0L
+    long grandMinRT  = Long.MAX_VALUE, grandMaxRT = 0L
+    long grandSumB   = 0L, grandSumS   = 0L
+
+    // Preserve insertion order
+    statsMap.each { label, s -&gt;
+        def total  = s[&quot;total&quot;]  as long
+        def errors = s[&quot;errors&quot;] as long
+        def sumRT  = s[&quot;sumRT&quot;]  as long
+        def sumRT2 = s[&quot;sumRT2&quot;] as long
+        def minRT  = s[&quot;minRT&quot;]  as long
+        def maxRT  = s[&quot;maxRT&quot;]  as long
+        def sumB   = s[&quot;sumB&quot;]   as long
+        def sumS   = s[&quot;sumS&quot;]   as long
+
+        def avgRT  = total &gt; 0 ? (long)(sumRT / total) : 0L
+        def errPct = total &gt; 0 ? String.format(&quot;%.2f&quot;, (errors / total) * 100) : &quot;0.00&quot;
+        def avgB   = total &gt; 0 ? (long)(sumB / total)  : 0L
+        def stdDev = &quot;0.00&quot;
+        def tps    = &quot;0.00&quot;
+        def recvKB = &quot;0.00&quot;
+        def sentKB = &quot;0.00&quot;
+
+        if (total &gt; 0) {
+            double avg = (double)(sumRT / total)
+            stdDev = String.format(&quot;%.2f&quot;, Math.sqrt(Math.abs(((double)sumRT2 / total) - (avg * avg))))
+        }
+        if (durationMs &gt; 0) {
+            double elapsed = durationMs / 1000.0
+            tps    = String.format(&quot;%.2f&quot;, total / elapsed)
+            recvKB = String.format(&quot;%.2f&quot;, (sumB / 1024.0) / elapsed)
+            sentKB = String.format(&quot;%.2f&quot;, (sumS / 1024.0) / elapsed)
+        }
+
+        log.info(&quot;Sampler [${label}] total=${total} errors=${errors} avg=${avgRT}ms min=${minRT}ms max=${maxRT}ms stddev=${stdDev} err%=${errPct} tps=${tps}&quot;)
+
+        samplerResults &lt;&lt; [
+            &quot;label&quot;           : label,
+            &quot;samples&quot;         : total,
+            &quot;average.ms&quot;      : avgRT,
+            &quot;min.ms&quot;          : minRT == Long.MAX_VALUE ? 0 : minRT,
+            &quot;max.ms&quot;          : maxRT,
+            &quot;std.dev&quot;         : stdDev,
+            &quot;error.percent&quot;   : errPct,
+            &quot;throughput.sec&quot;  : tps,
+            &quot;received.kb.sec&quot; : recvKB,
+            &quot;sent.kb.sec&quot;     : sentKB,
+            &quot;avg.bytes&quot;       : avgB
+        ]
+
+        grandTotal  += total;  grandErrors += errors
+        grandSumRT  += sumRT;  grandSumRT2 += sumRT2
+        grandMinRT   = Math.min(grandMinRT, minRT)
+        grandMaxRT   = Math.max(grandMaxRT, maxRT)
+        grandSumB   += sumB;   grandSumS   += sumS
+    }
+
+    // TOTAL row
+    def grandAvgRT  = grandTotal &gt; 0 ? (long)(grandSumRT / grandTotal) : 0L
+    def grandErrPct = grandTotal &gt; 0 ? String.format(&quot;%.2f&quot;, (grandErrors / grandTotal) * 100) : &quot;0.00&quot;
+    def grandStdDev = &quot;0.00&quot;
+    def grandTPS    = &quot;0.00&quot;
+    def grandRecvKB = &quot;0.00&quot;
+    def grandSentKB = &quot;0.00&quot;
+    def grandAvgB   = grandTotal &gt; 0 ? (long)(grandSumB / grandTotal) : 0L
+
+    if (grandTotal &gt; 0) {
+        double avg  = (double)(grandSumRT / grandTotal)
+        grandStdDev = String.format(&quot;%.2f&quot;, Math.sqrt(Math.abs(((double)grandSumRT2 / grandTotal) - (avg * avg))))
+    }
+    if (durationMs &gt; 0) {
+        double elapsed = durationMs / 1000.0
+        grandTPS    = String.format(&quot;%.2f&quot;, grandTotal / elapsed)
+        grandRecvKB = String.format(&quot;%.2f&quot;, (grandSumB / 1024.0) / elapsed)
+        grandSentKB = String.format(&quot;%.2f&quot;, (grandSumS / 1024.0) / elapsed)
+    }
+
+    log.info(&quot;TOTAL → samples=${grandTotal} avg=${grandAvgRT}ms err%=${grandErrPct} tps=${grandTPS}&quot;)
+
+    samplerResults &lt;&lt; [
+        &quot;label&quot;           : &quot;TOTAL&quot;,
+        &quot;samples&quot;         : grandTotal,
+        &quot;average.ms&quot;      : grandAvgRT,
+        &quot;min.ms&quot;          : grandMinRT == Long.MAX_VALUE ? 0 : grandMinRT,
+        &quot;max.ms&quot;          : grandMaxRT,
+        &quot;std.dev&quot;         : grandStdDev,
+        &quot;error.percent&quot;   : grandErrPct,
+        &quot;throughput.sec&quot;  : grandTPS,
+        &quot;received.kb.sec&quot; : grandRecvKB,
+        &quot;sent.kb.sec&quot;     : grandSentKB,
+        &quot;avg.bytes&quot;       : grandAvgB
+    ]
+
+    def payload = JsonOutput.toJson([[
+        &quot;specversion&quot; : &quot;1.0&quot;,
+        &quot;id&quot;          : &quot;jmeter-summary-${endEpoch}&quot;,
+        &quot;source&quot;      : &quot;jmeter&quot;,
+        &quot;type&quot;        : &quot;com.jmeter.test.summary&quot;,
+        &quot;data&quot; : [
+		    &quot;test.plan.name&quot;       : props.get(&quot;TEST_PLAN_NAME&quot;)  ?: &quot;N/A&quot;,
+		    &quot;test.script.name&quot;     : scriptName,
+		    &quot;test.event&quot;           : &quot;TEST_SUMMARY&quot;,
+		    &quot;test.start.time&quot;      : props.get(&quot;TEST_START_TIME&quot;) ?: &quot;N/A&quot;,
+		    &quot;test.start.epoch&quot;     : startEpoch,
+		    &quot;test.end.time&quot;        : endTime,
+		    &quot;test.end.epoch&quot;       : endEpoch,
+		    &quot;test.duration.ms&quot;     : durationMs,
+		    &quot;thread.num.threads&quot;   : numThreads,
+	         &quot;thread.ramp.up.sec&quot;   : rampUp,
+	         &quot;thread.loop.count&quot;    : loopCount,
+	         &quot;thread.total.samples&quot; : numThreads * loopCount,
+		    &quot;test.sampler.count&quot;   : statsMap.size(),
+		    &quot;summary.rows&quot;         : samplerResults
+		]
+    ]])
+
+    log.info(&quot;Payload:\n&quot; + JsonOutput.prettyPrint(payload))
+
+    def url  = new URL(DT_URL + &quot;/api/v2/bizevents/ingest&quot;)
+    def conn = (HttpURLConnection) url.openConnection()
+    conn.setRequestMethod(&quot;POST&quot;)
+    conn.setDoOutput(true)
+    conn.setRequestProperty(&quot;Content-Type&quot;, &quot;application/cloudevents-batch+json&quot;)
+    conn.setRequestProperty(&quot;Authorization&quot;, &quot;Api-Token ${DT_TOKEN}&quot;)
+    conn.setConnectTimeout(10000)
+    conn.setReadTimeout(10000)
+    conn.outputStream.withWriter(&quot;UTF-8&quot;) { it.write(payload) }
+
+    def responseCode = conn.responseCode
+    def responseBody = responseCode &gt;= 200 &amp;&amp; responseCode &lt; 300 \
+        ? conn.inputStream.text \
+        : conn.errorStream?.text ?: &quot;No error body&quot;
+
+    log.info(&quot;=== DT BizEvent SUMMARY → HTTP ${responseCode}: ${responseBody} ===&quot;)
+
+    SampleResult.setResponseCode(String.valueOf(responseCode))
+    SampleResult.setSuccessful(responseCode == 202)
+    SampleResult.setResponseData(responseBody, &quot;UTF-8&quot;)
+
+} catch (Exception e) {
+    log.error(&quot;=== tearDown FAILED: ${e.getMessage()} ===&quot;)
+    SampleResult.setSuccessful(false)
+    SampleResult.setResponseData(e.getMessage(), &quot;UTF-8&quot;)
+}</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree" enabled="true">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <objProp>
+            <name>saveConfig</name>
+            <value class="SampleSaveConfiguration">
+              <time>true</time>
+              <latency>true</latency>
+              <timestamp>true</timestamp>
+              <success>true</success>
+              <label>true</label>
+              <code>true</code>
+              <message>true</message>
+              <threadName>true</threadName>
+              <dataType>true</dataType>
+              <encoding>false</encoding>
+              <assertions>true</assertions>
+              <subresults>true</subresults>
+              <responseData>false</responseData>
+              <samplerData>false</samplerData>
+              <xml>false</xml>
+              <fieldNames>true</fieldNames>
+              <responseHeaders>false</responseHeaders>
+              <requestHeaders>false</requestHeaders>
+              <responseDataOnError>false</responseDataOnError>
+              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
+              <assertionsResultsToSave>0</assertionsResultsToSave>
+              <bytes>true</bytes>
+              <sentBytes>true</sentBytes>
+              <url>true</url>
+              <threadCounts>true</threadCounts>
+              <idleTime>true</idleTime>
+              <connectTime>true</connectTime>
+            </value>
+          </objProp>
+          <stringProp name="filename"></stringProp>
+        </ResultCollector>
+        <hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>
