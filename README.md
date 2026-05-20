@@ -15,15 +15,13 @@ Three ready-to-import dashboards then correlate this data so that you can compar
 ## Table of Contents
 
 1. [Architecture](#1-architecture)
-2. [Repository Contents](#2-repository-contents)
-3. [Prerequisites](#3-prerequisites)
-4. [Step 1 — Configure Dynatrace](#step-1--configure-dynatrace)
-5. [Step 2 — Open & Configure the JMeter Test Plan](#step-2--open--configure-the-jmeter-test-plan)
-6. [Step 3 — Understand the JMeter Test Plan Structure](#step-3--understand-the-jmeter-test-plan-structure)
-7. [Step 4 — Run the Test](#step-4--run-the-test)
-8. [Step 5 — Import the Dynatrace Dashboards](#step-5--import-the-dynatrace-dashboards)
-9. [Dashboards Explained](#dashboards-explained)
-10. [Troubleshooting](#troubleshooting)
+2. [Prerequisites](#2-prerequisites)
+3. [Step 1 — Configure Dynatrace](#step-1--configure-dynatrace)
+4. [Step 2 — Open & Configure the JMeter Test Plan](#step-2--open--configure-the-jmeter-test-plan)
+5. [Step 3 — Understand the JMeter Test Plan Structure](#step-3--understand-the-jmeter-test-plan-structure)
+6. [Step 4 — Run the Test](#step-4--run-the-test)
+7. [Step 5 — Import the Dynatrace Dashboards](#step-5--import-the-dynatrace-dashboards)
+8. [Dashboards Explained](#dashboards-explained)
 
 ---
 
@@ -56,27 +54,13 @@ Two independent data streams reach Dynatrace:
 
 ---
 
-## 2. Repository Contents
-
-| File | Purpose |
-|---|---|
-| [dTJMeterPerfTestSample.jmx](dTJMeterPerfTestSample.jmx) | Reference JMeter test plan — copy and adapt for your application |
-| [dashboards/Jmeter Performance Test Report.json](dashboards/Jmeter%20Performance%20Test%20Report.json) | **Dashboard 1** — Application-side view (spans / request attributes) |
-| [dashboards/Jmeter Performance Test Report-2.json](dashboards/Jmeter%20Performance%20Test%20Report-2.json) | **Dashboard 2** — Side-by-side comparison (JMeter BizEvents vs. application spans) |
-| [dashboards/JMeter Performance Test Report-3.json](dashboards/JMeter%20Performance%20Test%20Report-3.json) | **Dashboard 3** — JMeter-side performance summary (BizEvents only) |
-| [img/dashboard-1.png](img/dashboard-1.png) | Preview of Dashboard 1 |
-| [img/dashboard-2.png](img/dashboard-2.png) | Preview of Dashboard 2 |
-| [img/dashboard-3.png](img/dashboard-3.png) | Preview of Dashboard 3 |
-
----
-
-## 3. Prerequisites
+## 2. Prerequisites
 
 * **Apache JMeter 5.6.x** (or later) — the plan uses Groovy (`JSR223`) and standard HTTP samplers.
-* **A Dynatrace SaaS or Managed tenant** with:
+* **A Dynatrace SaaS tenant** with:
   * **OneAgent** installed on the host(s) where the application under test runs.
   * Permissions to create **API tokens**, **Request Attributes**, and **Dashboards**.
-* Network connectivity from the JMeter host to the Dynatrace tenant (`https://<env>.live.dynatrace.com` or your Managed URL).
+* Network connectivity from the JMeter host to your Dynatrace SaaS environment (`https://<env>.live.dynatrace.com`).
 
 ---
 
@@ -140,6 +124,21 @@ Make sure each Request Attribute is **enabled** for all relevant services (or gl
 ## Step 3 — Understand the JMeter Test Plan Structure
 
 The plan is intentionally split into three Thread Groups so that BizEvent boundaries are clean and statistics accumulate only over the real test workload.
+
+```
+Test Plan
+│
+├── setUp Thread Group
+│   └── JSR223 Sampler → "DT BizEvent - Test Start Time"
+│
+├── Main Thread Group
+│   ├── HTTP Header Manager (x-dynatrace-test)
+│   ├── HTTP Request - GET /sample/page/api/to/test
+│   └── JSR223 Listener → "Live Stats Accumulator for DT"
+│
+└── tearDown Thread Group
+    └── JSR223 Sampler → "DT BizEvent - Test Summary Report"
+```
 
 ### 3.1 HTTP Header Manager — request tagging
 
@@ -257,19 +256,6 @@ Source: the single **`com.jmeter.test.summary`** BizEvent emitted by the `tearDo
 A pure JMeter view — the same information JMeter's built-in HTML report would show (per-sampler average / min / max / stddev / error % / TPS / throughput in KB/s, plus the aggregate `TOTAL` row), but stored centrally in Dynatrace and queryable across many test runs.
 
 Use this dashboard for trend analysis, run-to-run comparison, and as a permanent archive of JMeter results.
-
----
-
-## Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| Dashboard 1 panels are empty | Request Attributes not created, not enabled, or named differently | Re-check Step 1.2 — names are case-sensitive and must match `Load.Test.Name`, `Load.Script.Name`, `Test.Step.Name`, `Test.Virtual.User` |
-| `DT BizEvent → HTTP 401` | Token invalid or missing `bizevents.ingest` scope | Re-create the token with the correct scope (Step 1.1) |
-| `DT BizEvent → HTTP 400` | Wrong `Content-Type` or malformed payload | Do not edit the JSR223 scripts unless necessary; verify `Content-Type: application/cloudevents-batch+json` |
-| `STATS_MAP is empty` in `tearDown` log | `setUp` Thread Group did not run, or the main Thread Group produced no samples | Ensure the `setUp Thread Group` is enabled and the main Thread Group ran at least one HTTP sampler |
-| Dashboard 3 shows old runs only | Test variable `Test_Run` defaults to the most recent — change selection at the top | Pick the desired `test.start.time` value from the dropdown |
-| Application not visible in Dashboard 1 even though OneAgent is installed | The HTTP service is not in scope of the Request Attribute, or traffic does not go through an instrumented process | Verify in Dynatrace **Services** that requests are showing up, then confirm Request Attributes are enabled for that service |
 
 ---
 
