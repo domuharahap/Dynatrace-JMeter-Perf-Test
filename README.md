@@ -263,8 +263,12 @@ Source: pulling out the same source of data to the dashboard 1 and 2, put it int
 
 For each steps and metricses mentioned on previous dashboard are combined into this Apps, different presentation of data, Get more details of Apps and .
 
-Use this dashboard for trend analysis, run-to-run comparison, and as a permanent archive of JMeter results.
+Use this Apps for:
+1. Trend analysis, run-to-run comparison, and as a permanent archive of JMeter results.
+2. When you want to know **what the application actually did** during the test
+3. Validate that the load actually arrived and to identify where time is being spent (client, network, or server)
 
+[Link to DynatraceApp - Jmeter Live Monitor](https://github.com/domuharahap/DynatraceApps-JMeter-Live-Monitor.git)
 ---
 
 ## Notes
