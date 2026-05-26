@@ -268,7 +268,10 @@ Use this Apps for:
 2. When you want to know **what the application actually did** during the test
 3. Validate that the load actually arrived and to identify where time is being spent (client, network, or server)
 
+![Dynatrace Apps - Dashboard](img/dashboard-1-livemonitor.png)
+
 [Link to DynatraceApp - Jmeter Live Monitor](https://github.com/domuharahap/DynatraceApps-JMeter-Live-Monitor.git)
+
 ---
 
 ## Notes
