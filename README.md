@@ -90,13 +90,13 @@ These tokens are the standard Dynatrace **Load Test Naming** convention. They ar
 
 In Dynatrace, go to **Settings → Server-side service monitoring → Request attributes** and create the following five attributes. For each one, use *Data source* = **HTTP request header** and *Source* = `x-dynatrace-test`, then add a **further processing** rule of type *Take the segment of a string between two delimiters*.
 
-| Request Attribute name | Header token | Between delimiters |
+| Request Attribute name | Header | Between delimiters |
 |---|---|---|
 | `Load.Test.Name` | `LTN` | `LTN=` … `;` |
 | `Load.Script.Name` | `LSN` | `LSN=` … `;` |
 | `Test.Step.Name` | `TSN` | `TSN=` … `;` |
 | `Test.Virtual.User` | `VU` | `VU=` … `;` |
-| `Test.Run.Id` | `RUN` | `RUN=` … *(end of string)* |
+| `Test.Run.Id` | `RUN` | `RID=` … *(end of string)* |
 
 Make sure each Request Attribute is **enabled** for all relevant services (or globally).
 
@@ -145,7 +145,7 @@ Test Plan
 Attached to the main Thread Group, the `HTTP Header Manager` injects the **`x-dynatrace-test`** header (and a few diagnostic `X-JMeter-*` headers) into every outbound request:
 
 ```
-x-dynatrace-test: LTN=${TEST_PLAN_TITLE};LSN=${__threadGroupName()};TSN=${__samplerName};VU=${__threadNum};RUN=${__time()}
+x-dynatrace-test: LTN=${TEST_PLAN_TITLE};LSN=${__threadGroupName()};TSN=${__samplerName};VU=${__threadNum};RID=${__time()}
 ```
 
 This is what causes each span on the application side to carry the Request Attributes you configured in Step 1.2. Dashboard 1 and the application-side panels of Dashboard 2 are built entirely on these attributes.
@@ -254,6 +254,14 @@ Use this dashboard to validate that the load actually arrived and to identify wh
 Source: the single **`com.jmeter.test.summary`** BizEvent emitted by the `tearDown` script.
 
 A pure JMeter view — the same information JMeter's built-in HTML report would show (per-sampler average / min / max / stddev / error % / TPS / throughput in KB/s, plus the aggregate `TOTAL` row), but stored centrally in Dynatrace and queryable across many test runs.
+
+Use this dashboard for trend analysis, run-to-run comparison, and as a permanent archive of JMeter results.
+
+### Additional AppEngine Performance Report
+
+Source: pulling out the same source of data to the dashboard 1 and 2, put it into single apps with 3 tabs. Live performance (similar to dashboard 2) and Jmeter views and Dynatrace Views.
+
+For each steps and metricses mentioned on previous dashboard are combined into this Apps, different presentation of data, Get more details of Apps and .
 
 Use this dashboard for trend analysis, run-to-run comparison, and as a permanent archive of JMeter results.
 
